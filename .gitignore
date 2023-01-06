@@ -1,0 +1,12 @@
+# ROM and disk images
+*.ROM
+*.dsk
+
+# Cross-platform setup and build output
+setup_t
+setup.sh
+cfg/
+
+# macOS build output
+minivmac.xcodeproj/
+minivmac.app/
