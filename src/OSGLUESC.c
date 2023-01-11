@@ -377,11 +377,8 @@ LOCALFUNC blnr Sony_Insert0(FILE *refnum, blnr locked,
 		MacMsg(kStrTooManyImagesTitle, kStrTooManyImagesMessage,
 			falseblnr);
 	} else {
-		printf("Sony_Insert0 %d\n", Drive_No);
-
         Drives[Drive_No] = refnum;
         DiskInsertNotify(Drive_No, locked);
-        printf("notified\n");
 
 #if IncludeSonyGetName || IncludeSonyNew
         {
@@ -406,9 +403,7 @@ LOCALFUNC blnr Sony_Insert0(FILE *refnum, blnr locked,
 
 LOCALFUNC blnr Sony_Insert1(char *drivepath, blnr silentfail)
 {
-    printf("Sony_Insert1(%s)\n", drivepath);
 	blnr locked = falseblnr;
-	/* printf("Sony_Insert1 %s\n", drivepath); */
 	FILE *refnum = fopen(drivepath, "rb+");
 	if (NULL == refnum) {
 		locked = trueblnr;
@@ -718,6 +713,13 @@ LOCALPROC EnterSpeedStopped(void)
 
 LOCALPROC CheckForSavedTasks(void)
 {
+	if (MyEvtQNeedRecover) {
+		MyEvtQNeedRecover = falseblnr;
+
+		/* attempt cleanup, MyEvtQNeedRecover may get set again */
+		MyEvtQTryRecoverFromFull();
+	}
+
 	if (RequestMacOff) {
 		RequestMacOff = falseblnr;
 		if (AnyDiskInserted()) {
@@ -757,6 +759,56 @@ LOCALPROC CheckForSavedTasks(void)
 		NeedWholeScreenDraw = falseblnr;
 		ScreenChangedAll();
 	}
+}
+
+/* --- input --- */
+
+LOCALPROC ReadJSInput()
+{
+    int lock = EM_ASM_INT_V({ return workerApi.acquireInputLock(); });
+    if (!lock) {
+        return;
+    }
+    int mouseButtonState = EM_ASM_INT_V({
+        return workerApi.getInputValue(workerApi.InputBufferAddresses.mouseButtonStateAddr);
+    });
+
+    if (mouseButtonState > -1) {
+        MyMouseButtonSet(mouseButtonState == 0 ? falseblnr : trueblnr);
+    }
+
+    int hasMousePosition = EM_ASM_INT_V({
+        return workerApi.getInputValue(workerApi.InputBufferAddresses.mousePositionFlagAddr);
+    });
+    if (hasMousePosition) {
+        int mouseX = EM_ASM_INT_V({
+            return workerApi.getInputValue(workerApi.InputBufferAddresses.mousePositionXAddr);
+        });
+        int mouseY = EM_ASM_INT_V({
+            return workerApi.getInputValue(workerApi.InputBufferAddresses.mousePositionYAddr);
+        });
+
+        MyMousePositionSet(mouseX, mouseY);
+    }
+
+    int hasKeyEvent = EM_ASM_INT_V({
+        return workerApi.getInputValue(workerApi.InputBufferAddresses.keyEventFlagAddr);
+    });
+    if (hasKeyEvent) {
+        int keycode = EM_ASM_INT_V({
+            return workerApi.getInputValue(workerApi.InputBufferAddresses.keyCodeAddr);
+        });
+
+        int keystate = EM_ASM_INT_V({
+            return workerApi.getInputValue(workerApi.InputBufferAddresses.keyStateAddr);
+        });
+
+        Keyboard_UpdateKeyMap2(keycode, keystate == 0 ? falseblnr : trueblnr);
+    }
+
+    // TODO: ethernet interrupt
+
+    EM_ASM({ workerApi.releaseInputLock(); });
 }
 
 /* --- main program flow --- */
@@ -799,6 +851,8 @@ label_retry:
 		MySound_SecondNotify();
 #endif
 	}
+
+    ReadJSInput();
 
 	OnTrueTime = TrueEmulatedTime;
 }
@@ -925,6 +979,9 @@ LOCALPROC UnInitOSGLU(void)
 	if (MacMsgDisplayed) {
 		MacMsgDisplayOff();
 	}
+
+    // No-op, but suppresses a warning about this being an unused function.
+    DisconnectKeyCodes2();
 
 #if EmLocalTalk
 	UnInitLocalTalk();
