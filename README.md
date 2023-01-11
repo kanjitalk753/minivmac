@@ -1,3 +1,7 @@
+Fork of the Mini vMac Macintosh emulator modified to be compiled to WebAssembly and run in the browser. Part of the [Infinite Mac](https://github.com/mihaip/infinite-mac), see [its README](https://github.com/mihaip/infinite-mac/blob/main/README.md) and [introductory blog post](https://blog.persistent.info/2022/03/blog-post.html) for more details.
+
+## Original README
+
 MnvM_b37: README
 Paul C. Pratt
 www.gryphel.com

@@ -376,6 +376,12 @@ LOCALPROC WriteCommonCNFUIOSGContents(void)
 		WriteDestFileLn("#include <stdio.h>");
 		WriteDestFileLn("#include <stdlib.h>");
 		WriteDestFileLn("#include <string.h>");
+	} else if (gbk_apifam_esc == gbo_apifam) {
+		WriteDestFileLn("#include <stdio.h>");
+		WriteDestFileLn("#include <stdlib.h>");
+		WriteDestFileLn("#include <string.h>");
+		WriteDestFileLn("#include <time.h>");
+		WriteDestFileLn("#include <sys/time.h>");
 	} else if (gbk_apifam_win == gbo_apifam) {
 		if ((gbk_ide_mvc == cur_ide)
 			&& (gbk_targfam_wnce == gbo_targfam))

@@ -97,6 +97,9 @@ LOCALPROC WriteAppCNFUIOSGContents(void)
 			case gbk_apifam_cco:
 				s = "CCO";
 				break;
+			case gbk_apifam_esc:
+				s = "ESC";
+				break;
 		}
 
 		if (nullpr != s) {

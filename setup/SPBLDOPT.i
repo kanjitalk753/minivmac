@@ -379,6 +379,7 @@ LOCALFUNC blnr dfo_VarFullScreen(void)
 	blnr v;
 
 	if ((gbk_apifam_gtk == gbo_apifam)
+		|| (gbk_apifam_esc == gbo_apifam)
 		|| (gbk_targfam_wnce == gbo_targfam))
 	{
 		v = falseblnr;

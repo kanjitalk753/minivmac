@@ -195,6 +195,8 @@ LOCALPROC WriteBgcCOptOptions(void)
 		/* WriteCStrToDestFile(" -O3"); */
 		if (gbk_targfam_lnds == gbo_targfam) {
 			WriteCStrToDestFile(" -O2");
+		} else if (gbk_targ_emsc == cur_targ) {
+			WriteCStrToDestFile(" -O3");
 		} else {
 			WriteCStrToDestFile(" -Os");
 		}
@@ -396,6 +398,8 @@ LOCALPROC WriteBashGccMakeFile(void)
 			} else if (gbk_apifam_nds == gbo_apifam) {
 				WriteCStrToDestFile(" -L$(DEVKITPRO)/libnds/lib");
 				WriteCStrToDestFile(" -lfilesystem -lfat -lnds9");
+			} else if (gbk_apifam_esc == gbo_apifam) {
+				WriteCStrToDestFile(" -gsource-map");
 			} else {
 				if (gbk_targfam_slrs == gbo_targfam) {
 					WriteCStrToDestFile(" -lposix4");
@@ -448,7 +452,7 @@ LOCALPROC WriteBashGccMakeFile(void)
 			switch (cur_ide) {
 				case gbk_ide_bgc:
 					if ((gbk_targfam_minx == gbo_targfam)
-						|| (gbk_targfam_linx == gbo_targfam)
+						|| (gbk_targfam_linx == gbo_targfam && gbk_targ_emsc != cur_targ)
 						|| (gbk_targfam_oind == gbo_targfam)
 							/*
 								for oi64, strip makes it larger!

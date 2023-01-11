@@ -6,7 +6,14 @@
 setup_t
 setup.sh
 cfg/
+bld/
+Makefile
 
 # macOS build output
 minivmac.xcodeproj/
 minivmac.app/
+
+# Emscripten build output
+minivmac
+*.wasm
+*.wasm.map

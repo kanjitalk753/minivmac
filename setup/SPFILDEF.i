@@ -195,6 +195,7 @@ static void DoAllSrcFiles(tDoOneCFile p)
 		CSrcFlagsUseHdrIf((gbk_apifam_xwn == gbo_apifam)
 			|| (gbk_apifam_sd2 == gbo_apifam)
 			|| (gbk_apifam_sdl == gbo_apifam)
+			|| (gbk_apifam_esc == gbo_apifam)
 			),
 		nullpr);
 	p("SCRNMAPR", kDepDirCSrc,
@@ -243,6 +244,10 @@ static void DoAllSrcFiles(tDoOneCFile p)
 	p("OSGLUCCO", kDepDirCSrc,
 		kCSrcFlgmUseAPI | kCSrcFlgmOjbc
 			| CSrcFlagsUseSrcIf(gbk_apifam_cco == gbo_apifam),
+		DoOSGLUdepends);
+	p("OSGLUESC", kDepDirCSrc,
+		kCSrcFlgmUseAPI
+			| CSrcFlagsUseSrcIf(gbk_apifam_esc == gbo_apifam),
 		DoOSGLUdepends);
 
 	p("CNFUIPIC", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);

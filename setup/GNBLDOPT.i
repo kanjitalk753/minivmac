@@ -382,6 +382,7 @@ enum {
 	gbk_targ_xgen, /* Generic X11 */
 	gbk_targ_ndsa, /* Nintendo DS on ARM  */
 	gbk_targ_irix, /* Silicon Graphics's IRIX on MIPS */
+	gbk_targ_emsc, /* Emscripten */
 	gbk_targ_port, /* Port (don't generate platform/compiler files) */
 	kNumTargets
 };
@@ -514,6 +515,9 @@ LOCALFUNC char * GetTargetName(int i)
 		case gbk_targ_irix:
 			s = "irix";
 			break;
+		case gbk_targ_emsc:
+			s = "emsc";
+			break;
 		case gbk_targ_port:
 			s = "port";
 			break;
@@ -559,6 +563,7 @@ LOCALFUNC tMyErr ChooseTarg(void)
 				case gbk_targ_nb64:
 				case gbk_targ_oi64:
 				case gbk_targ_mcar:
+				case gbk_targ_emsc:
 					/* ok */
 					break;
 				default:
@@ -1001,6 +1006,7 @@ LOCALFUNC int dfo_cpufam(void)
 			break;
 		case gbk_targ_xgen:
 		case gbk_targ_port:
+		case gbk_targ_emsc:
 			v = gbk_cpufam_gen;
 			break;
 	}
@@ -1072,6 +1078,7 @@ LOCALFUNC tMyErr ChooseTargFam(void)
 		case gbk_targ_lx64:
 		case gbk_targ_larm:
 		case gbk_targ_lspr:
+		case gbk_targ_emsc:
 			gbo_targfam = gbk_targfam_linx;
 			break;
 		case gbk_targ_slrs:
@@ -1479,6 +1486,7 @@ enum {
 	gbk_apifam_sdl,
 	gbk_apifam_sd2,
 	gbk_apifam_cco,
+	gbk_apifam_esc,
 	gbk_apifam_prt,
 	kNumAPIFamilies
 };
@@ -1523,6 +1531,9 @@ LOCALFUNC char * GetAPIFamName(int i)
 			break;
 		case gbk_apifam_cco:
 			s = "cco";
+			break;
+		case gbk_apifam_esc:
+			s = "esc";
 			break;
 		case gbk_apifam_prt:
 			s = "prt";
