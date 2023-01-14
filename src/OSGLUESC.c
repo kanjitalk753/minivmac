@@ -467,30 +467,30 @@ LOCALFUNC blnr LoadMacRom(Prefs prefs)
 #define UseColorImage (0 != WantColorImage)
 #endif
 
+LOCALVAR uint32_t *BrowserFramebuffer;
+LOCALVAR uint32_t BWTo32bitLUT[256][8];
 
 LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 	ui4r bottom, ui4r right)
 {
-    // printf("HaveChangedScreenBuff(%d, %d, %d, %d)\n", top, left, bottom, right);
-	ui3b *the_data = (ui3b *)GetCurDrawBuff();
+	ui3b *macFramebuffer = (ui3b *)GetCurDrawBuff();
 
-    // TODO: check UseColorMode and UseColorImage
+	// TODO: check UseColorMode and UseColorImage
+	ui4r leftByte = left / 8;
+	ui4r rightByte = (right + 7) / 8;
 
-    uint32_t *browser_framebuffer = (uint32_t *)malloc(vMacScreenWidth * vMacScreenHeight * 4);
+	for (int y = top; y < bottom; y++) {
+		for (int xByte = leftByte; xByte < rightByte; xByte++) {
+			ui3b *p = macFramebuffer + y * vMacScreenByteWidth + xByte;
+			memcpy(BrowserFramebuffer + y * vMacScreenWidth + xByte * 8, BWTo32bitLUT[*p], 8 * sizeof(uint32_t));
+		}
+	}
 
-	uint32_t BWLUT_pixel[2];
-    BWLUT_pixel[0] = 0xFFFFFFFF;
-    BWLUT_pixel[1] = 0x00000000;
-
-    for (int y = 0; y < vMacScreenHeight; y++) {
-        for (int x = 0; x < vMacScreenWidth; x++) {
-            ui3b *p = the_data + ((y * vMacScreenWidth + x) / 8);
-            browser_framebuffer[y * vMacScreenWidth + x] = BWLUT_pixel[(*p >> ((~ x) & 0x7)) & 1];
-        }
-    }
-
-    EM_ASM_({ workerApi.blit($0, $1); }, browser_framebuffer, vMacScreenWidth * vMacScreenHeight * 4);
-    free(browser_framebuffer);
+	EM_ASM_(
+		{ workerApi.blit($0, $1, {top: $2, left: $3, bottom: $4, right: $5}); },
+		BrowserFramebuffer,
+		vMacScreenWidth * vMacScreenHeight * 4,
+		top, left, bottom, right);
 }
 
 LOCALPROC MyDrawChangesAndClear(void)
@@ -498,7 +498,18 @@ LOCALPROC MyDrawChangesAndClear(void)
 	if (ScreenChangedBottom > ScreenChangedTop) {
 		HaveChangedScreenBuff(ScreenChangedTop, ScreenChangedLeft,
 			ScreenChangedBottom, ScreenChangedRight);
-		ScreenClearChanges();
+		// ScreenClearChanges is normally invoked here, but it does the same
+		// thing as ScreenChangedAll (in the v37 beta, though not in the v36
+		// stable release), and thus marks the entire screen as  dirty. Do our
+		// own empty initial state instead.
+		ScreenChangedTop = vMacScreenHeight;
+		ScreenChangedBottom = 0;
+		ScreenChangedLeft = vMacScreenWidth;
+		ScreenChangedRight = 0;
+	} else {
+		// Still need to signal to the JS that a blit would have been done, so
+		// that we can compute the permitted idle time.
+	    EM_ASM_({ workerApi.blit(0, 0); });
 	}
 }
 
@@ -936,12 +947,26 @@ LOCALPROC CheckSavedMacMsg(void)
 
 LOCALFUNC blnr Screen_Init(void)
 {
+
+    BrowserFramebuffer = (uint32_t *)malloc(vMacScreenWidth * vMacScreenHeight * 4);
+	for (size_t byte = 0; byte < 256; byte++) {
+		for (size_t bit = 0; bit < 8; bit++) {
+			BWTo32bitLUT[byte][7 - bit] = (byte & (1 << bit)) ? 0x00000000 : 0xFFFFFFFF;
+		}
+	}
+
     printf("Screen_Init(%dx%d, depth=%d)\n", vMacScreenWidth, vMacScreenHeight, vMacScreenDepth);
     EM_ASM_({ workerApi.didOpenVideo($0, $1); }, vMacScreenWidth, vMacScreenHeight);
 
 	InitKeyCodes();
+	ScreenClearChanges();
 
 	return trueblnr;
+}
+
+LOCALFUNC void Screen_UnInit(void)
+{
+    free(BrowserFramebuffer);
 }
 
 LOCALFUNC blnr InitOSGLU(void)
@@ -1000,6 +1025,8 @@ LOCALPROC UnInitOSGLU(void)
 	UnInitPbufs();
 #endif
 	UnInitDrives();
+
+	Screen_UnInit();
 
 	CheckSavedMacMsg();
 
