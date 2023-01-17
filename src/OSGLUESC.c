@@ -281,6 +281,10 @@ GLOBALOSGLUFUNC tMacErr vSonyTransfer(blnr IsWrite, ui3p Buffer,
 		*Sony_ActCount = NewSony_Count;
 	}
 
+	if (IsWrite) {
+		EM_ASM_({ workerApi.didDiskWrite($0, $1); }, Sony_Start, Sony_Count);
+	}
+
 	return err; /*& figure out what really to return &*/
 }
 
@@ -841,18 +845,15 @@ label_retry:
 
 	if (CurSpeedStopped) {
 		DoneWithDrawingForTick();
-        EM_ASM_({ workerApi.idleWait($0); });
 		goto label_retry;
 	}
 
 	if (ExtraTimeNotOver()) {
         si5b TimeDiff = GetTimeDiff();
 		if (TimeDiff < 0) {
-            // TODO: actually use the TimeDiff value
-            // TODO: do something with the return value
-            EM_ASM_({
-                return workerApi.idleWait($0);
-            }, TimeDiff);
+			EM_ASM_(
+				{ workerApi.sleep($0); },
+				-((double) TimeDiff)/TicksPerSecond);
         }
 		goto label_retry;
 	}
