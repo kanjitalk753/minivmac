@@ -655,6 +655,35 @@ LOCALFUNC blnr InitLocationDat(void)
 	return trueblnr;
 }
 
+/* --- disk images -- */
+
+EM_JS(char*, consumeDiskImagePath, (void), {
+	const diskImagePath = workerApi.consumeDiskImagePath();
+	if (!diskImagePath || !diskImagePath.length) {
+		return 0;
+	}
+	const diskImagePathLength = lengthBytesUTF8(diskImagePath) + 1;
+	const diskImagePathCstr = _malloc(diskImagePathLength);
+	stringToUTF8(diskImagePath, diskImagePathCstr, diskImagePathLength);
+	return diskImagePathCstr;
+});
+
+LOCALVAR ui5b LastDiskImageCheckTime;
+
+LOCALFUNC void HandleDiskImages(void)
+{
+	ui5b currentTime = LastTimeSec * TicksPerSecond + LastTimeUsec;
+	if (currentTime - LastDiskImageCheckTime < 100000) {
+		return;
+	}
+	LastDiskImageCheckTime = currentTime;
+	char *diskImagePath = consumeDiskImagePath();
+	if (diskImagePath) {
+		Sony_Insert1(diskImagePath, trueblnr);
+		free(diskImagePath);
+	}
+}
+
 /* --- clipboard --- */
 
 #if IncludeHostTextClipExchange
@@ -864,6 +893,7 @@ label_retry:
 #endif
 	}
 
+	HandleDiskImages();
     ReadJSInput();
 
 	OnTrueTime = TrueEmulatedTime;
