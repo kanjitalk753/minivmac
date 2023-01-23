@@ -7,6 +7,7 @@ gcc -o setup_t setup/tool.c
 ./setup_t \
     -t emsc \
     -api esc \
+    $@ \
     > setup.sh
 
 # generate Makefile

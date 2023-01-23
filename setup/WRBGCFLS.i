@@ -400,6 +400,7 @@ LOCALPROC WriteBashGccMakeFile(void)
 				WriteCStrToDestFile(" -lfilesystem -lfat -lnds9");
 			} else if (gbk_apifam_esc == gbo_apifam) {
 				WriteCStrToDestFile(" -gsource-map");
+				WriteCStrToDestFile(" -s INITIAL_MEMORY=33554432"); // 32 MB
 			} else {
 				if (gbk_targfam_slrs == gbo_targfam) {
 					WriteCStrToDestFile(" -lposix4");

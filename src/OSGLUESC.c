@@ -89,6 +89,8 @@ LOCALFUNC blnr LoadPrefs(Prefs *prefs) {
 
 #include "INTLCHAR.h"
 
+#define WantColorTransValid 1
+
 #include "COMOSGLU.h"
 
 #include "PBUFSTDC.h"
@@ -467,26 +469,50 @@ LOCALFUNC blnr LoadMacRom(Prefs prefs)
 
 /* --- video out --- */
 
-#ifndef UseColorImage
-#define UseColorImage (0 != WantColorImage)
-#endif
-
 LOCALVAR uint32_t *BrowserFramebuffer;
-LOCALVAR uint32_t BWTo32bitLUT[256][8];
+LOCALVAR uint32_t CLUT_BWTo32bit[256][8];
+LOCALVAR uint32_t CLUT_8bitTo32bit[256];
 
 LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 	ui4r bottom, ui4r right)
 {
 	ui3b *macFramebuffer = (ui3b *)GetCurDrawBuff();
 
-	// TODO: check UseColorMode and UseColorImage
-	ui4r leftByte = left / 8;
-	ui4r rightByte = (right + 7) / 8;
+#if vMacScreenDepth == 3
+	if (UseColorMode) {
+		if (! ColorTransValid) {
+			for (int i = 0; i < CLUT_size; ++i) {
+				CLUT_8bitTo32bit[i] =
+					0xFF000000 |
+					(CLUT_blues[i] & 0xFF) << 16 |
+					(CLUT_greens[i] & 0xFF) << 8 |
+					(CLUT_reds[i] & 0xFF) << 0;
+			}
+			ColorTransValid = trueblnr;
+		}
+	}
+#endif
 
-	for (int y = top; y < bottom; y++) {
-		for (int xByte = leftByte; xByte < rightByte; xByte++) {
-			ui3b *p = macFramebuffer + y * vMacScreenByteWidth + xByte;
-			memcpy(BrowserFramebuffer + y * vMacScreenWidth + xByte * 8, BWTo32bitLUT[*p], 8 * sizeof(uint32_t));
+#if vMacScreenDepth == 3
+	if (UseColorMode) {
+		for (int y = top; y < bottom; y++) {
+			ui3b *row = macFramebuffer + y * vMacScreenByteWidth;
+			for (int x = left; x < right; x++) {
+				BrowserFramebuffer[y * vMacScreenWidth + x] = CLUT_8bitTo32bit[row[x]];
+			}
+		}
+	}
+	else
+#endif
+	{
+		ui4r leftByte = left / 8;
+		ui4r rightByte = (right + 7) / 8;
+
+		for (int y = top; y < bottom; y++) {
+			for (int xByte = leftByte; xByte < rightByte; xByte++) {
+				ui3b *p = macFramebuffer + y * vMacScreenMonoByteWidth + xByte;
+				memcpy(BrowserFramebuffer + y * vMacScreenWidth + xByte * 8, CLUT_BWTo32bit[*p], 8 * sizeof(uint32_t));
+			}
 		}
 	}
 
@@ -980,11 +1006,16 @@ LOCALFUNC blnr Screen_Init(void)
 {
 
     BrowserFramebuffer = (uint32_t *)malloc(vMacScreenWidth * vMacScreenHeight * 4);
+
 	for (size_t byte = 0; byte < 256; byte++) {
 		for (size_t bit = 0; bit < 8; bit++) {
-			BWTo32bitLUT[byte][7 - bit] = (byte & (1 << bit)) ? 0x00000000 : 0xFFFFFFFF;
+			CLUT_BWTo32bit[byte][7 - bit] = (byte & (1 << bit)) ? 0x00000000 : 0xFFFFFFFF;
 		}
 	}
+
+#if 0 != vMacScreenDepth
+	ColorModeWorks = trueblnr;
+#endif
 
     printf("Screen_Init(%dx%d, depth=%d)\n", vMacScreenWidth, vMacScreenHeight, vMacScreenDepth);
     EM_ASM_({ workerApi.didOpenVideo($0, $1); }, vMacScreenWidth, vMacScreenHeight);
