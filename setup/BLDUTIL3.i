@@ -403,6 +403,10 @@ LOCALPROC WriteStrAppAbbrev(void)
 LOCALPROC WriteAppNameStr(void)
 {
 	WriteStrAppAbbrev();
+	if (gbk_targ_emsc == cur_targ) {
+		WriteCStrToDestFile("-");
+		WriteCStrToDestFile(GetModelName(cur_mdl));
+	}
 	switch (gbo_targfam) {
 		case gbk_targfam_mach:
 		case gbk_targfam_carb:

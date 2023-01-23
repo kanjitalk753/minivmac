@@ -14,6 +14,6 @@ minivmac.xcodeproj/
 minivmac.app/
 
 # Emscripten build output
-minivmac
+minivmac-*
 *.wasm
 *.wasm.map
