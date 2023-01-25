@@ -243,6 +243,8 @@ LOCALVAR FILE *Drives[NumDrives]; /* open disk image files */
 LOCALVAR char *DriveNames[NumDrives];
 #endif
 
+LOCALVAR blnr NeedsInitialImagesRemount = falseblnr;
+
 LOCALPROC InitDrives(void)
 {
 	/*
@@ -328,6 +330,13 @@ LOCALFUNC tMacErr vSonyEject0(tDrive Drive_No, blnr deleteit)
 		}
 	}
 #endif
+
+	// When restarting the Mac (via the Special menu command) all disks are
+	// ejected. We set a flag and remount them as soon as possible, so that
+	// the user does not end up with no boot disk.
+	if (Drive_No == 0) {
+		NeedsInitialImagesRemount = trueblnr;
+	}
 
 	return mnvm_noErr;
 }
@@ -434,6 +443,23 @@ LOCALFUNC blnr LoadInitialImages(Prefs prefs)
 	return trueblnr;
 }
 
+LOCALFUNC void CheckInitialImagesRemount(void)
+{
+	if (!NeedsInitialImagesRemount) {
+		return;
+	}
+	Prefs prefs;
+	if (!LoadPrefs(&prefs)) {
+		printf("Could not read prefs for initial images\n");
+		return;
+	}
+	if (!LoadInitialImages(prefs)) {
+		printf("Could not reload initial images\n");
+		return;
+	}
+	NeedsInitialImagesRemount = falseblnr;
+}
+
 
 /* --- ROM --- */
 
@@ -471,7 +497,9 @@ LOCALFUNC blnr LoadMacRom(Prefs prefs)
 
 LOCALVAR uint32_t *BrowserFramebuffer;
 LOCALVAR uint32_t CLUT_BWTo32bit[256][8];
+#if vMacScreenDepth == 3
 LOCALVAR uint32_t CLUT_8bitTo32bit[256];
+#endif
 
 LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 	ui4r bottom, ui4r right)
@@ -920,7 +948,8 @@ label_retry:
 	}
 
 	HandleDiskImages();
-    ReadJSInput();
+	ReadJSInput();
+	CheckInitialImagesRemount();
 
 	OnTrueTime = TrueEmulatedTime;
 }
