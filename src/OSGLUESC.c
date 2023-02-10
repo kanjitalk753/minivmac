@@ -709,6 +709,165 @@ LOCALFUNC blnr InitLocationDat(void)
 	return trueblnr;
 }
 
+/* --- sound --- */
+
+#if MySoundEnabled
+
+#define kLn2SoundBuffers 4 /* kSoundBuffers must be a power of two */
+#define kSoundBuffers (1 << kLn2SoundBuffers)
+
+#define DesiredMinFilledSoundBuffs 3
+	/*
+		if too big then sound lags behind emulation.
+		if too small then sound will have pauses.
+	*/
+
+#define kLnOneBuffLen 9
+#define kLnAllBuffLen (kLn2SoundBuffers + kLnOneBuffLen)
+#define kOneBuffLen (1UL << kLnOneBuffLen)
+#define kAllBuffLen (1UL << kLnAllBuffLen)
+#define kLnOneBuffSz (kLnOneBuffLen + kLn2SoundSampSz - 3)
+#define kLnAllBuffSz (kLnAllBuffLen + kLn2SoundSampSz - 3)
+#define kOneBuffSz (1UL << kLnOneBuffSz)
+#define kAllBuffSz (1UL << kLnAllBuffSz)
+#define kOneBuffMask (kOneBuffLen - 1)
+#define kAllBuffMask (kAllBuffLen - 1)
+#define dbhBufferSize (kAllBuffSz + kOneBuffSz)
+
+#define dbglog_SoundStuff (0 && dbglog_HAVE)
+
+LOCALVAR tpSoundSamp TheSoundBuffer = nullpr;
+volatile static ui4b ThePlayOffset;
+volatile static ui4b TheFillOffset;
+volatile static ui4b MinFilledSoundBuffs;
+LOCALVAR ui4b TheWriteOffset;
+
+GLOBALOSGLUFUNC tpSoundSamp MySound_BeginWrite(ui4r n, ui4r *actL)
+{
+	ui4b ToFillLen = kAllBuffLen - (TheWriteOffset - ThePlayOffset);
+	ui4b WriteBuffContig =
+		kOneBuffLen - (TheWriteOffset & kOneBuffMask);
+
+	if (WriteBuffContig < n) {
+		n = WriteBuffContig;
+	}
+	if (ToFillLen < n) {
+		/* overwrite previous buffer */
+		printf("sound buffer over flow\n");
+#if dbglog_SoundStuff
+		dbglog_writeln("sound buffer over flow");
+#endif
+		TheWriteOffset -= kOneBuffLen;
+	}
+
+	*actL = n;
+	return TheSoundBuffer + (TheWriteOffset & kAllBuffMask);
+}
+
+LOCALPROC ConvertSoundBlockToNative(tpSoundSamp p)
+{
+	int i;
+
+	for (i = kOneBuffLen; --i >= 0; ) {
+		*p++ -= kCenterSound;
+	}
+}
+
+LOCALPROC MySound_WroteABlock(void)
+{
+#if dbglog_SoundStuff
+	dbglog_writeln("enter MySound_WroteABlock");
+#endif
+
+	ui4b PrevWriteOffset = TheWriteOffset - kOneBuffLen;
+	tpSoundSamp p = TheSoundBuffer + (PrevWriteOffset & kAllBuffMask);
+	ConvertSoundBlockToNative(p);
+
+	TheFillOffset = TheWriteOffset;
+	ui4b ToPlayLen = TheFillOffset - ThePlayOffset;
+
+	tpSoundSamp playp = TheSoundBuffer + (ThePlayOffset & kAllBuffMask);
+	ui4b len = ToPlayLen;
+	#if kLn2SoundSampSz > 3
+		len <<= (kLn2SoundSampSz - 3);
+	#endif
+
+	EM_ASM_INT({ return workerApi.enqueueAudio($0, $1); }, playp, len);
+	ThePlayOffset = TheFillOffset;
+}
+
+LOCALPROC MySound_Stop(void)
+{
+	// No-op for now
+}
+
+LOCALPROC MySound_Start(void)
+{
+	/* Reset variables */
+	MinFilledSoundBuffs = kSoundBuffers + 1;
+}
+
+LOCALPROC MySound_UnInit(void)
+{
+	// No-op for now
+}
+
+#define SOUND_SAMPLERATE 22255
+
+LOCALFUNC blnr MySound_Init(void)
+{
+	ThePlayOffset = 0;
+	TheFillOffset = 0;
+	TheWriteOffset = 0;
+
+	MySound_Start();
+
+	EM_ASM_({ workerApi.didOpenAudio($0, $1, $2); },
+		SOUND_SAMPLERATE,
+		1 << kLn2SoundSampSz, // sample size
+		1); // channels
+
+	return trueblnr;
+}
+
+GLOBALOSGLUPROC MySound_EndWrite(ui4r actL)
+{
+	TheWriteOffset += actL;
+
+	if (0 == (TheWriteOffset & kOneBuffMask)) {
+		// just finished a block
+		MySound_WroteABlock();
+	}
+}
+
+LOCALPROC MySound_SecondNotify(void)
+{
+	/*
+		OSGLUxxx common:
+		called once a second.
+		can be used to check if sound output it
+		lagging or gaining, and if so
+		adjust emulated time by a tick.
+	*/
+
+	if (MinFilledSoundBuffs <= kSoundBuffers) {
+		if (MinFilledSoundBuffs > DesiredMinFilledSoundBuffs) {
+#if dbglog_SoundStuff
+			dbglog_writeln("MinFilledSoundBuffs too high");
+#endif
+			IncrNextTime();
+		} else if (MinFilledSoundBuffs < DesiredMinFilledSoundBuffs) {
+#if dbglog_SoundStuff
+			dbglog_writeln("MinFilledSoundBuffs too low");
+#endif
+			++TrueEmulatedTime;
+		}
+		MinFilledSoundBuffs = kSoundBuffers + 1;
+	}
+}
+
+#endif /* MySoundEnabled */
+
 /* --- disk images -- */
 
 EM_JS(char*, consumeDiskImagePath, (void), {
