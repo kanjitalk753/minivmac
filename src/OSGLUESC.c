@@ -1062,6 +1062,19 @@ LOCALPROC ReadJSInput()
 
         Keyboard_UpdateKeyMap2(keycode, keystate == 0 ? falseblnr : trueblnr);
     }
+    int hasSpeed = EM_ASM_INT_V({
+        return workerApi.getInputValue(workerApi.InputBufferAddresses.speedFlagAddr);
+    });
+    if (hasSpeed) {
+        int speed = EM_ASM_INT_V({
+            return workerApi.getInputValue(workerApi.InputBufferAddresses.speedAddr);
+        });
+        if (speed == -2 ) {
+            SpeedValue = WantInitSpeedValue;
+        } else {
+            SetSpeedValue(speed);
+        }
+    }
 
     // TODO: ethernet interrupt
 
