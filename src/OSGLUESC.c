@@ -236,9 +236,11 @@ LOCALFUNC blnr MacRomanTextToNativePtr(tPbuf i, blnr IsFileName,
 
 /* --- drives --- */
 
-#define NotAfileRef NULL
+typedef int DiskId;
 
-LOCALVAR FILE *Drives[NumDrives]; /* open disk image files */
+static const DiskId NotAfileRef = -1;
+
+LOCALVAR DiskId Drives[NumDrives]; /* open disk image files */
 #if IncludeSonyGetName || IncludeSonyNew
 LOCALVAR char *DriveNames[NumDrives];
 #endif
@@ -266,27 +268,25 @@ GLOBALOSGLUFUNC tMacErr vSonyTransfer(blnr IsWrite, ui3p Buffer,
 	ui5r *Sony_ActCount)
 {
 	tMacErr err = mnvm_miscErr;
-	FILE *refnum = Drives[Drive_No];
+	DiskId diskId = Drives[Drive_No];
 	ui5r NewSony_Count = 0;
 
-	if (0 == fseek(refnum, Sony_Start, SEEK_SET)) {
-		if (IsWrite) {
-			NewSony_Count = fwrite(Buffer, 1, Sony_Count, refnum);
-		} else {
-			NewSony_Count = fread(Buffer, 1, Sony_Count, refnum);
-		}
+	if (IsWrite) {
+		NewSony_Count = EM_ASM_INT({
+			return workerApi.disks.write($0, $1, $2, $3);
+		}, diskId, Buffer, Sony_Start, Sony_Count);
+	} else {
+		NewSony_Count = EM_ASM_INT({
+			return workerApi.disks.read($0, $1, $2, $3);
+		}, diskId, Buffer, Sony_Start, Sony_Count);
+	}
 
-		if (NewSony_Count == Sony_Count) {
-			err = mnvm_noErr;
-		}
+	if (NewSony_Count == Sony_Count) {
+		err = mnvm_noErr;
 	}
 
 	if (nullpr != Sony_ActCount) {
 		*Sony_ActCount = NewSony_Count;
-	}
-
-	if (IsWrite) {
-		EM_ASM_({ workerApi.didDiskWrite($0, $1); }, Sony_Start, Sony_Count);
 	}
 
 	return err; /*& figure out what really to return &*/
@@ -294,28 +294,22 @@ GLOBALOSGLUFUNC tMacErr vSonyTransfer(blnr IsWrite, ui3p Buffer,
 
 GLOBALOSGLUFUNC tMacErr vSonyGetSize(tDrive Drive_No, ui5r *Sony_Count)
 {
-	tMacErr err = mnvm_miscErr;
-	FILE *refnum = Drives[Drive_No];
-	long v;
-
-	if (0 == fseek(refnum, 0, SEEK_END)) {
-		v = ftell(refnum);
-		if (v >= 0) {
-			*Sony_Count = v;
-			err = mnvm_noErr;
-		}
-	}
-
-	return err; /*& figure out what really to return &*/
+	DiskId diskId = Drives[Drive_No];
+	*Sony_Count = EM_ASM_INT({
+		return workerApi.disks.size($0);
+	}, diskId);
+	return mnvm_noErr;
 }
 
 LOCALFUNC tMacErr vSonyEject0(tDrive Drive_No, blnr deleteit)
 {
-	FILE *refnum = Drives[Drive_No];
+	DiskId diskId = Drives[Drive_No];
 
 	DiskEjectedNotify(Drive_No);
 
-	fclose(refnum);
+	EM_ASM_({
+		workerApi.disks.close($0);
+	}, diskId);
 	Drives[Drive_No] = NotAfileRef; /* not really needed */
 
 #if IncludeSonyGetName || IncludeSonyNew
@@ -382,9 +376,16 @@ GLOBALOSGLUFUNC tMacErr vSonyGetName(tDrive Drive_No, tPbuf *r)
 }
 #endif
 
-LOCALFUNC blnr Sony_Insert0(FILE *refnum, blnr locked,
-	char *drivepath)
+LOCALFUNC blnr Sony_Insert1(char *drivepath, blnr silentfail)
 {
+	DiskId diskId = EM_ASM_INT({
+		return workerApi.disks.open(UTF8ToString($0));
+	}, drivepath);
+
+	if (diskId == -1) {
+		return falseblnr;
+	}
+
 	tDrive Drive_No;
 	blnr IsOk = falseblnr;
 
@@ -392,8 +393,8 @@ LOCALFUNC blnr Sony_Insert0(FILE *refnum, blnr locked,
 		MacMsg(kStrTooManyImagesTitle, kStrTooManyImagesMessage,
 			falseblnr);
 	} else {
-        Drives[Drive_No] = refnum;
-        DiskInsertNotify(Drive_No, locked);
+        Drives[Drive_No] = diskId;
+        DiskInsertNotify(Drive_No, falseblnr);
 
 #if IncludeSonyGetName || IncludeSonyNew
         {
@@ -410,28 +411,12 @@ LOCALFUNC blnr Sony_Insert0(FILE *refnum, blnr locked,
 	}
 
 	if (! IsOk) {
-		fclose(refnum);
+		EM_ASM_({
+			workerApi.disks.close($0);
+		}, diskId);
 	}
 
 	return IsOk;
-}
-
-LOCALFUNC blnr Sony_Insert1(char *drivepath, blnr silentfail)
-{
-	blnr locked = falseblnr;
-	FILE *refnum = fopen(drivepath, "rb+");
-	if (NULL == refnum) {
-		locked = trueblnr;
-		refnum = fopen(drivepath, "rb");
-	}
-	if (NULL == refnum) {
-		if (! silentfail) {
-			MacMsg(kStrOpenFailTitle, kStrOpenFailMessage, falseblnr);
-		}
-	} else {
-		return Sony_Insert0(refnum, locked, drivepath);
-	}
-	return falseblnr;
 }
 
 LOCALFUNC blnr LoadInitialImages(Prefs prefs)
@@ -870,15 +855,15 @@ LOCALPROC MySound_SecondNotify(void)
 
 /* --- disk images -- */
 
-EM_JS(char*, consumeDiskImagePath, (void), {
-	const diskImagePath = workerApi.consumeDiskImagePath();
-	if (!diskImagePath || !diskImagePath.length) {
+EM_JS(char*, consumeDiskName, (void), {
+	const diskName = workerApi.disks.consumeDiskName();
+	if (!diskName || !diskName.length) {
 		return 0;
 	}
-	const diskImagePathLength = lengthBytesUTF8(diskImagePath) + 1;
-	const diskImagePathCstr = _malloc(diskImagePathLength);
-	stringToUTF8(diskImagePath, diskImagePathCstr, diskImagePathLength);
-	return diskImagePathCstr;
+	const diskNameLength = lengthBytesUTF8(diskName) + 1;
+	const diskNameCstr = _malloc(diskNameLength);
+	stringToUTF8(diskName, diskNameCstr, diskNameLength);
+	return diskNameCstr;
 });
 
 LOCALVAR ui5b LastDiskImageCheckTime;
@@ -890,10 +875,10 @@ LOCALFUNC void HandleDiskImages(void)
 		return;
 	}
 	LastDiskImageCheckTime = currentTime;
-	char *diskImagePath = consumeDiskImagePath();
-	if (diskImagePath) {
-		Sony_Insert1(diskImagePath, trueblnr);
-		free(diskImagePath);
+	char *diskName = consumeDiskName();
+	if (diskName) {
+		Sony_Insert1(diskName, trueblnr);
+		free(diskName);
 	}
 }
 
