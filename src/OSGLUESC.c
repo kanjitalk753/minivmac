@@ -29,6 +29,7 @@ typedef struct {
 LOCALFUNC blnr LoadPrefs(Prefs *prefs) {
 	FILE *prefsFile = fopen("/prefs", "r");
 	if (NULL == prefsFile) {
+		fprintf(stderr, "Failed to open prefs file\n");
 		return falseblnr;
     }
 
@@ -435,11 +436,11 @@ LOCALFUNC void CheckInitialImagesRemount(void)
 	}
 	Prefs prefs;
 	if (!LoadPrefs(&prefs)) {
-		printf("Could not read prefs for initial images\n");
+		fprintf(stderr, "Could not read prefs for initial images\n");
 		return;
 	}
 	if (!LoadInitialImages(prefs)) {
-		printf("Could not reload initial images\n");
+		fprintf(stderr, "Could not reload initial images\n");
 		return;
 	}
 	NeedsInitialImagesRemount = falseblnr;
@@ -1219,32 +1220,61 @@ LOCALFUNC void Screen_UnInit(void)
 
 LOCALFUNC blnr InitOSGLU(void)
 {
-	blnr IsOk = falseblnr;
     Prefs prefs;
 
-	if (AllocMyMemory())
+	if (!AllocMyMemory()) {
+		fprintf(stderr, "AllocMyMemory failed\n");
+		return falseblnr;
+	}
 #if MySoundEnabled
-	if (MySound_Init())
-		/* takes a while to stabilize, do as soon as possible */
+	/* takes a while to stabilize, do as soon as possible */
+	if (!MySound_Init()) {
+		fprintf(stderr, "MySound_Init failed\n");
+		return falseblnr;
+	}
 #endif
-    if (LoadPrefs(&prefs))
-	if (LoadMacRom(prefs))
-	if (LoadInitialImages(prefs))
+    if (!LoadPrefs(&prefs)) {
+		fprintf(stderr, "LoadPrefs failed\n");
+		return falseblnr;
+	}
+	if (!LoadMacRom(prefs)) {
+		fprintf(stderr, "LoadMacRom failed\n");
+		return falseblnr;
+	}
+	if (!LoadInitialImages(prefs)) {
+		fprintf(stderr, "LoadInitialImages failed\n");
+		return falseblnr;
+	}
 #if UseActvCode
-	if (ActvCodeInit())
+	if (!ActvCodeInit()) {
+		fprintf(stderr, "ActvCodeInit failed\n");
+		return falseblnr;
+	}
 #endif
-	if (InitLocationDat())
-	if (Screen_Init())
+	if (!InitLocationDat()) {
+		fprintf(stderr, "InitLocationDat failed\n");
+		return falseblnr;
+	}
+	if (!Screen_Init()) {
+		fprintf(stderr, "Screen_Init failed\n");
+		return falseblnr;
+	}
 #if EmLocalTalk
-	if (EntropyGather())
-	if (InitLocalTalk())
+	if (!EntropyGather()) {
+		fprintf(stderr, "EntropyGather failed\n");
+		return falseblnr;
+	}
+	if (!InitLocalTalk()) {
+		fprintf(stderr, "InitLocalTalk failed\n");
+		return falseblnr;
+	}
 #endif
-	if (WaitForRom())
-	{
-		IsOk = trueblnr;
+	if (!WaitForRom()) {
+		fprintf(stderr, "WaitForRom failed\n");
+		return falseblnr;
 	}
 
-	return IsOk;
+	return trueblnr;
 }
 
 LOCALPROC UnInitOSGLU(void)
