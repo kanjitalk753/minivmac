@@ -401,6 +401,8 @@ LOCALPROC WriteBashGccMakeFile(void)
 			} else if (gbk_apifam_esc == gbo_apifam) {
 				WriteCStrToDestFile(" -gsource-map");
 				WriteCStrToDestFile(" -s INITIAL_MEMORY=33554432"); // 32 MB
+				WriteCStrToDestFile(" -s MODULARIZE -s EXPORT_ES6 -s EXPORT_NAME=emulator");
+				WriteCStrToDestFile(" -s 'EXTRA_EXPORTED_RUNTIME_METHODS=[\"FS\"]'");
 			} else {
 				if (gbk_targfam_slrs == gbo_targfam) {
 					WriteCStrToDestFile(" -lposix4");
