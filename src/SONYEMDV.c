@@ -30,6 +30,7 @@
 
 #include "PICOMMON.h"
 #include "MINEM68K.h"
+#include <string.h>
 
 #include "SONYEMDV.h"
 
@@ -434,6 +435,20 @@ LOCALFUNC tMacErr vSonyNextPendingInsert(tDrive *Drive_No)
 							)
 						{
 							gotFormat = trueblnr;
+						}
+					}
+
+					// Handle .iso's with HFS partitions. Based on the Basilisk II find_hfs_partition implementation.
+					if (! gotFormat) {
+						ui4r drSigWord = do_get_mem_word(
+							&Temp[0x400]);
+						if (drSigWord == 0x504d) { // HFS partition map magic number.
+							ui3p map = &Temp[0x400];
+							if (strcmp((char *)(map + 48), "Apple_HFS") == 0) {
+								DataOffset = ((map[8] << 24) | (map[9] << 16) | (map[10] << 8) | map[11]) << 9;
+								DataSize = 512 * ((map[12] << 24) | (map[13] << 16) | (map[14] << 8) | map[15]);
+								gotFormat = trueblnr;
+							}
 						}
 					}
 
