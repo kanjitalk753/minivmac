@@ -1,12 +1,10 @@
 #!/bin/sh
 
 # we need to build the setup tool first
-if [ ! -x ./setup_t ]; then
-	gcc -o setup_t setup/tool.c
-fi
+gcc -o setup_t setup/tool.c
 
 # run setup tool to generate Xcode project generator
-./setup_t -t mc64 > setup.sh
+./setup_t -t mcar > setup.sh
 
 # generate Xcode project
 bash ./setup.sh
