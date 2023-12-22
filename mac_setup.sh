@@ -4,7 +4,15 @@
 gcc -o setup_t setup/tool.c
 
 # run setup tool to generate Xcode project generator
-./setup_t -t mcar > setup.sh
+./setup_t \
+    -t mcar \
+    -sound 1 \
+    -drives 20 \
+    -sony-tag 1 \
+    -sony-sum 1 \
+    -sony-dc42 1 \
+    $@ \
+    > setup.sh
 
 # generate Xcode project
 bash ./setup.sh

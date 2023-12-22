@@ -12,6 +12,9 @@ gcc -o setup_t setup/tool.c
     -api esc \
     -sound 1 \
     -drives 20 \
+    -sony-tag 1 \
+    -sony-sum 1 \
+    -sony-dc42 1 \
     $@ \
     > setup.sh
 
